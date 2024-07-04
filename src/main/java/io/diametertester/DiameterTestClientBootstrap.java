@@ -36,12 +36,12 @@ public class DiameterTestClientBootstrap
 
 	void onStart(@Observes StartupEvent ev)
 	{
-		log.info("Starting the Diameter Test Client");
+		LOG.info("Starting the Diameter Test Client");
 		testClient.runner();
 	}
 
 	void onStop(@Observes ShutdownEvent ev)
 	{
-		log.info("Stopping the Diameter Test Client");
+		LOG.info("Stopping the Diameter Test Client");
 	}
 }

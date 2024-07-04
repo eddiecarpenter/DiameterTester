@@ -78,7 +78,7 @@ public class DiameterTestClient extends CCASessionFactoryImpl implements Network
 
 	@DiameterConfig
 	Configuration diameterConfiguration;
-	
+
 	private final Stack stack = new StackImpl();
 
 	private long vendorId = 0;
@@ -118,10 +118,10 @@ public class DiameterTestClient extends CCASessionFactoryImpl implements Network
 			Network network = stack.unwrap(Network.class);
 			Set<ApplicationId> applIds = stack.getMetaData().getLocalPeer().getCommonApplications();
 			for (ApplicationId applId : applIds) {
-				log.info("Diameter Charge Client: Adding Listener for [" + applId + "].");
+				LOG.info("Diameter Charge Client: Adding Listener for [" + applId + "].");
 				network.addNetworkReqListener(this, applId);
 			}
-			log.info("Diameter Charge Client: Supporting " + applIds.size() + " applications.");
+			LOG.info("Diameter Charge Client: Supporting " + applIds.size() + " applications.");
 
 			stack.start(Mode.ALL_PEERS, 30000, TimeUnit.MILLISECONDS);
 
@@ -131,21 +131,21 @@ public class DiameterTestClient extends CCASessionFactoryImpl implements Network
 			sessionFactory.registerAppFacory(ClientCCASession.class, this);
 		}//try
 		catch (ApplicationAlreadyUseException | IllegalDiameterStateException | InternalException ex) {
-			log.error("Failure initializing Diameter Charge Client", ex);
+			LOG.error("Failure initializing Diameter Charge Client", ex);
 			throw new TestClientException("Failure initializing Diameter Charge Client", ex);
 		}//catch
 	}//startService
 
 	public void runner()
 	{
-		log.info("Starting the Diameter Stack");
+		LOG.info("Starting the Diameter Stack");
 		TestClientModel model = loadConfigFile();
 
 		startService();
 
 		if (model.getServices().stream()
 				 .noneMatch(ServiceConfig::isEnabled)) {
-			log.error("No ACTIVE test service found - terminating");
+			LOG.error("No ACTIVE test service found - terminating");
 			Quarkus.asyncExit();
 		}
 
@@ -168,11 +168,11 @@ public class DiameterTestClient extends CCASessionFactoryImpl implements Network
 	@Override
 	public void doCreditControlAnswer(ClientCCASession session, JCreditControlRequest request, JCreditControlAnswer answer) throws InternalException
 	{
-		log.debug("Received Answer:");
+		LOG.debug("Received Answer:");
 		DiameterUtilities.printMessage(answer.getMessage());
 
 		String sessionId = answer.getMessage().getSessionId();
-		log.debug("Search for linked runner. Total active runners: {}", runners.size());
+		LOG.debug("Search for linked runner. Total active runners: {}", runners.size());
 
 		for (DiameterServiceRunner runner : runners) {
 			if (runner.getSessionId().equals(sessionId)) {
@@ -198,13 +198,13 @@ public class DiameterTestClient extends CCASessionFactoryImpl implements Network
 	@Override
 	public Answer processRequest(Request request)
 	{
-		log.debug("<< Received Request [" + request + "]");
+		LOG.debug("<< Received Request [" + request + "]");
 		try {
 			ServerCCASessionImpl session = sessionFactory.getNewAppSession(request.getSessionId(), ApplicationId.createByAuthAppId(vendorId, 4), ServerCCASession.class, Collections.emptyList());
 			return session.processRequest(request);
 		}
 		catch (InternalException e) {
-			log.error(">< Failure handling received request.", e);
+			LOG.error(">< Failure handling received request.", e);
 		}
 
 		return null;

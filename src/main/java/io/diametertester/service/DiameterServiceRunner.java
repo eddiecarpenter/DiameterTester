@@ -105,7 +105,7 @@ public class DiameterServiceRunner
 			@Override
 			public void run()
 			{
-				log.warn("{}::{} - Timeout waiting for response, terminating the runner", sessionId, msisdn);
+				LOG.warn("{}::{} - Timeout waiting for response, terminating the runner", sessionId, msisdn);
 				mySession.release();
 				if (!initRequest()) {
 					client.cancelRunner(self);
@@ -214,28 +214,28 @@ public class DiameterServiceRunner
 			switch (requestType) {
 				case INITIAL_REQUEST -> {
 					reqType = "SETUP";
-					log.info("{}::{} - Call Setup", session.getSessionId(), msisdn);
+					LOG.info("{}::{} - Call Setup", session.getSessionId(), msisdn);
 				}
 				case UPDATE_REQUEST -> {
 					reqType = "UPDATE";
-					log.info("{}::{} - Call Update", session.getSessionId(), msisdn);
+					LOG.info("{}::{} - Call Update", session.getSessionId(), msisdn);
 				}
 				case TERMINATION_REQUEST -> {
 					reqType = "TERMINATE";
-					log.info("{}::{} - Call Terminated", session.getSessionId(), msisdn);
+					LOG.info("{}::{} - Call Terminated", session.getSessionId(), msisdn);
 				}
 			}//switch
 
-			log.info("{}::{} - Sending {} message, requesting for {} units, marking {} units as used, total used {}", session.getSessionId(), msisdn, reqType, service.getRequestUnits(), unitsUsed, totalUsed);
+			LOG.info("{}::{} - Sending {} message, requesting for {} units, marking {} units as used, total used {}", session.getSessionId(), msisdn, reqType, service.getRequestUnits(), unitsUsed, totalUsed);
 
-			log.trace("Sending request:");
+			LOG.trace("Sending request:");
 			DiameterUtilities.printMessage(request.getMessage());
 			startTimer();
 			mySession = session;
 			session.sendCreditControlRequest(request);
 		}//try
 		catch (IllegalDiameterStateException | InternalException | OverloadException | RouteException ex) {
-			log.error("Error sending request", ex);
+			LOG.error("Error sending request", ex);
 			throw new TestClientException("Error Sending Request");
 		}//catch
 	}//createCCR
@@ -256,7 +256,7 @@ public class DiameterServiceRunner
 				return true;
 			}//try
 			catch (InternalException ex) {
-				log.error("Error starting a new request", ex);
+				LOG.error("Error starting a new request", ex);
 			}
 		}//if
 
@@ -274,9 +274,9 @@ public class DiameterServiceRunner
 			AvpSet answerAvps = answer.getMessage().getAvps();
 
 			int vResultCode = answerAvps.getAvp(Avp.RESULT_CODE).getInteger32();
-			log.info("{}::{} - Answer for '{}' received in {}ms ({}) - Result {}", sessionId, msisdn, service.getService(), getElapsedTime(), requestType, vResultCode);
+			LOG.info("{}::{} - Answer for '{}' received in {}ms ({}) - Result {}", sessionId, msisdn, service.getService(), getElapsedTime(), requestType, vResultCode);
 			if (requestType == TERMINATION_REQUEST) {
-				log.info("{}::{} - Session for '{}' terminated", sessionId, msisdn, service.getService());
+				LOG.info("{}::{} - Session for '{}' terminated", sessionId, msisdn, service.getService());
 
 				try {
 					Thread.sleep(1000L);
@@ -324,7 +324,7 @@ public class DiameterServiceRunner
 					totalUnits -= unitsUsed;
 
 					long waitTime = (unitsUsed / service.getUsageRateSec()) / service.getUsageRate().toSeconds();
-					log.info("{}::{} - For '{}' Granted {} units, {} units used, {} units remains. Sleep time {} seconds", sessionId, msisdn, service.getService(), unitsGranted, unitsUsed, totalUnits, waitTime);
+					LOG.info("{}::{} - For '{}' Granted {} units, {} units used, {} units remains. Sleep time {} seconds", sessionId, msisdn, service.getService(), unitsGranted, unitsUsed, totalUnits, waitTime);
 					try {
 						//						Thread.sleep(waitTime *waitTime * 1000L);
 						Thread.sleep(1000L);
@@ -338,12 +338,12 @@ public class DiameterServiceRunner
 				sendRequest(session, unitsUsed);
 			}//if
 			else {
-				log.debug("{}::{} - Terminating unsuccessful session", msisdn, session.getSessionId());
+				LOG.debug("{}::{} - Terminating unsuccessful session", msisdn, session.getSessionId());
 				return !initRequest();
 			}//else
 		}//try
 		catch (InternalException | NumberFormatException | AvpDataException | TestClientException ex) {
-			log.error("Error processing CCA Answer", ex);
+			LOG.error("Error processing CCA Answer", ex);
 			return true;
 		}//catch
 
