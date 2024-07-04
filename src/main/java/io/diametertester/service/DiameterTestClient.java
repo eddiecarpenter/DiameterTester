@@ -118,10 +118,10 @@ public class DiameterTestClient extends CCASessionFactoryImpl implements Network
 			Network network = stack.unwrap(Network.class);
 			Set<ApplicationId> applIds = stack.getMetaData().getLocalPeer().getCommonApplications();
 			for (ApplicationId applId : applIds) {
-				LOG.info("Diameter Charge Client: Adding Listener for [" + applId + "].");
+				LOG.info("Diameter Charge Client: Adding Listener for [{}].",applId);
 				network.addNetworkReqListener(this, applId);
 			}
-			LOG.info("Diameter Charge Client: Supporting " + applIds.size() + " applications.");
+			LOG.info("Diameter Charge Client: Supporting {} applications.",applIds.size());
 
 			stack.start(Mode.ALL_PEERS, 30000, TimeUnit.MILLISECONDS);
 
@@ -198,7 +198,7 @@ public class DiameterTestClient extends CCASessionFactoryImpl implements Network
 	@Override
 	public Answer processRequest(Request request)
 	{
-		LOG.debug("<< Received Request [" + request + "]");
+		LOG.debug("<< Received Request [{}]",request);
 		try {
 			ServerCCASessionImpl session = sessionFactory.getNewAppSession(request.getSessionId(), ApplicationId.createByAuthAppId(vendorId, 4), ServerCCASession.class, Collections.emptyList());
 			return session.processRequest(request);

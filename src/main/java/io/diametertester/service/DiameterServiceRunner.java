@@ -139,8 +139,8 @@ public class DiameterServiceRunner
 			totalUsed += unitsUsed;
 			reqAvps.addAvp(Avp.VENDOR_ID, vendorId);
 
-			AvpSet vUsedServiceUnitAvp = null;
-			AvpSet vRequestServiceUnitAvp = null;
+			AvpSet vUsedServiceUnitAvp ;
+			AvpSet vRequestServiceUnitAvp ;
 
 			switch (service.getServiceType()) {
 				case VOICE -> {
