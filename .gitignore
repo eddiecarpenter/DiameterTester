@@ -1,0 +1,31 @@
+# Java compiled #
+#################
+*.class
+
+# Eclipse #
+###########
+.classpath
+.project
+.settings
+
+# IntelliJ IDEA #
+#################
+.idea/
+*.iml
+*.iws
+
+# Maven #
+#########
+target
+\$\{env.JBOSS_HOME\}
+
+# OS generated files #
+######################
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db

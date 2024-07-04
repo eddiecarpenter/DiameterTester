@@ -1,0 +1,55 @@
+numbers:
+  - 0828938386
+  #  - 0650100079 # Legacy bundles
+#  - 0601231315
+#  - 0601231316
+#  - 0601231317
+#  - 0601231318
+#  - 0650100204
+#  - 0650100205
+#  - 0650100206
+#  - 0650100207
+#  - 0650100208
+#  - 0650100209
+#  - 0650100210
+
+concurrency:
+  nrThreads: 1
+  destinationHost: ocs.frei.one
+  destinationRealm: server.tradeswitch.com
+  nrRepeats: 1
+
+services:
+  - service: Voice Call
+    enabled: true
+    serviceId: 0
+    context: voice@huawei.com
+    serviceType: VOICE
+    destination: 0650100300
+    units: 15s
+    requestUnits: 5s
+    usageRateSec: 5s # The rate the units are consumed
+
+  - service: Consume Data
+    enabled: false
+    serviceId: 400
+    context: scg@huawei.com
+    ratingGroup: 100100100
+    serviceType: DATA
+    units: 10mb
+    requestUnits: 500kb
+    usageRateSec: 40mb  # The rate the units are consumed
+    usageRate: 30s
+    usagePercentage: 0.9
+    
+#  - service: Consume data
+#    enabled: true
+#    serviceId: 400
+#    context: scg@huawei.com
+#    ratingGroup: 100100100
+#    serviceType: DATA
+#    units: 10mb
+#    requestUnits: 500kb
+#    usageRateSec: 40mb  # The rate the units are consumed
+#    usageRate: 1m
+#    usagePercentage: 0.9

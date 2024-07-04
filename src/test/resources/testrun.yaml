@@ -1,0 +1,115 @@
+numbers:
+  - 0670200100
+  - 0670200101
+
+concurrency:
+  nrThreads: 5
+  destinationHost: ocs.frei.one
+  destinationRealm: server.tradeswitch.com
+  nrRepeats: 30
+
+services:
+  - service: call national number
+    enabled: true
+    serviceId: 0
+    context: voice@tradeswitch.com
+    serviceType: VOICE
+    destination: "0828938386"
+    units: 500s
+    requestUnits: 30s
+    usageRateSec: 5s # The rate the units are consumed
+
+  - service: Consume data
+    enabled: true
+    serviceId: 400
+    context: data@tradeswitch.com
+    ratingGroup: 100100100
+    serviceType: DATA
+    units: 10mb
+    requestUnits: 500Kb
+    usageRateSec: 80mb  # The rate the units are consumed
+    usageRate: 10s
+    usagePercentage: 0.9
+
+  - service: Consume USSD data (version 1)
+    enabled: false
+    serviceId: 1
+    context: ussd@tradeswitch.com
+    serviceType: USSD
+    destination: "*135#"
+    units: 1
+
+  - service: Consume USSD data (version 2)
+    enabled: false
+    serviceId: 2
+    context: ussd@tradeswitch.com
+    serviceType: USSD2
+    destination: "*130*100#"
+    units: 60s
+    requestUnits: 20s
+    usageRateSec: 5s # The rate the units are consumed
+
+diameter:
+  localPeer:
+    uri: "aaa://ocsclient:1812"
+    ipAddresses:
+      - "0.0.0.0"
+      - localhost
+    realm: "server.tradeswitch.com"
+    productName: "Diameter Test Client"
+    firmwareRevision: 1
+    vendorId: 0
+    applications:
+      - vendorId: 0
+        authApplId: 4
+        acctApplId: 0
+      - vendorId: 10415
+        authApplId: 4
+        acctApplId: 0
+    overloadMonitor:
+      - index: 1
+        lowThreshold: 0.5
+        highThreshold: 0.6
+        applicationId:
+          vendorId: 0
+          authApplId: 4
+          acctApplId: 0
+
+  parameters:
+    acceptUndefinedPeer: true
+    duplicateProtection: false
+    duplicateTimer: 240000
+    useUriAsFqdn: false
+    threadPool:
+      size: 10
+      priority: 5
+    concurrent:
+      ThreadGroup: 2000
+      ProcessingMessageTimer: 4
+      DuplicationMessageTimer: 4
+      RedirectMessageTimer: 4
+      PeerOverloadTimer: 4
+      ConnectionTimer: 40
+      StatisticTimer: 40
+      ApplicationSession: 1000
+
+  network:
+    peers:
+      - peer: "aaa://ocs.frei.one:3868"
+        ip: 105.29.73.64
+        attemptConnect: true
+        rating: 0
+      - peer: "aaa://citrix:3868"
+        ip: localhost
+        attemptConnect: false
+        rating: 0
+    realms:
+      - realm: "server.tradeswitch.com"
+        peers: "192.168.241.1"
+        localAction: "LOCAL"
+        dynamic: false
+        expTime: 1
+        applicationId:
+          vendorId: 0
+          authApplId: 4
+          acctApplId: 0
