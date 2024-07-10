@@ -22,52 +22,37 @@ import io.diametertester.exceptions.TestClientException;
 import io.diametertester.mapper.LoadRunnerModelMapper;
 import io.diametertester.model.ServiceConfig;
 import io.diametertester.model.TestClientModel;
-import io.go.diameter.DiameterConfig;
+import io.go.diameter.*;
 import io.quarkus.runtime.Quarkus;
-import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.context.ManagedExecutor;
-import org.jdiameter.api.Answer;
-import org.jdiameter.api.ApplicationAlreadyUseException;
-import org.jdiameter.api.ApplicationId;
-import org.jdiameter.api.Configuration;
 import org.jdiameter.api.IllegalDiameterStateException;
 import org.jdiameter.api.InternalException;
-import org.jdiameter.api.Mode;
-import org.jdiameter.api.Network;
-import org.jdiameter.api.NetworkReqListener;
-import org.jdiameter.api.Request;
 import org.jdiameter.api.Stack;
 import org.jdiameter.api.cca.ClientCCASession;
-import org.jdiameter.api.cca.ServerCCASession;
+import org.jdiameter.api.cca.ClientCCASessionListener;
 import org.jdiameter.api.cca.events.JCreditControlAnswer;
 import org.jdiameter.api.cca.events.JCreditControlRequest;
 import org.jdiameter.client.api.ISessionFactory;
 import org.jdiameter.common.impl.DiameterUtilities;
-import org.jdiameter.common.impl.app.cca.CCASessionFactoryImpl;
-import org.jdiameter.server.impl.StackImpl;
-import org.jdiameter.server.impl.app.cca.ServerCCASessionImpl;
 
-import java.io.BufferedReader;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-@ApplicationScoped
 @Slf4j
-//@DiameterAppFactory(ClientCCASession.class)
-public class DiameterTestClient extends CCASessionFactoryImpl implements NetworkReqListener
+@DiameterServiceOptions(
+		mode = ApplicationMode.CLIENT,
+		application = DiameterApplication.CCA,
+		authApplId = 4L
+)
+@DiameterService
+public class DiameterTestClient implements ClientCCASessionListener//, NetworkReqListener
 {
 	@Inject
 	@ConfigProperty(name = "testclient.testconfig", defaultValue = "testclient.yaml")
@@ -77,13 +62,11 @@ public class DiameterTestClient extends CCASessionFactoryImpl implements Network
 	ManagedExecutor executor;
 
 	@DiameterConfig
-	Configuration diameterConfiguration;
+	Stack stack;
 
-	private final Stack stack = new StackImpl();
+	ISessionFactory sessionFactory;
 
-	private long vendorId = 0;
-
-	private List<DiameterServiceRunner> runners = new ArrayList<>();
+	private final List<DiameterServiceRunner> runners = new ArrayList<>();
 
 	private TestClientModel loadConfigFile()
 	{
@@ -101,68 +84,44 @@ public class DiameterTestClient extends CCASessionFactoryImpl implements Network
 		}
 	}
 
-	public void startService()
+	public void runner() throws IllegalDiameterStateException
 	{
-		try {
-			stack.init(diameterConfiguration);
-
-			// Let it stabilize...
-			try {
-				Thread.sleep(500);
-			}
-			catch (InterruptedException ex) {
-				Thread.currentThread().interrupt();
-			}
-
-			vendorId = stack.getMetaData().getLocalPeer().getVendorId();
-			Network network = stack.unwrap(Network.class);
-			Set<ApplicationId> applIds = stack.getMetaData().getLocalPeer().getCommonApplications();
-			for (ApplicationId applId : applIds) {
-				LOG.info("Diameter Charge Client: Adding Listener for [{}].",applId);
-				network.addNetworkReqListener(this, applId);
-			}
-			LOG.info("Diameter Charge Client: Supporting {} applications.",applIds.size());
-
-			stack.start(Mode.ALL_PEERS, 30000, TimeUnit.MILLISECONDS);
-
-			sessionFactory = (ISessionFactory) stack.getSessionFactory();
-			init(sessionFactory);
-
-			sessionFactory.registerAppFacory(ClientCCASession.class, this);
-		}//try
-		catch (ApplicationAlreadyUseException | IllegalDiameterStateException | InternalException ex) {
-			LOG.error("Failure initializing Diameter Charge Client", ex);
-			throw new TestClientException("Failure initializing Diameter Charge Client", ex);
-		}//catch
-	}//startService
-
-	public void runner()
-	{
-		LOG.info("Starting the Diameter Stack");
+		LOG.info("Loading the load testing configuration");
 		TestClientModel model = loadConfigFile();
 
-		startService();
-
+		//startService();
+		sessionFactory = (ISessionFactory) stack.getSessionFactory();
 		if (model.getServices().stream()
-				 .noneMatch(ServiceConfig::isEnabled)) {
+				.noneMatch(ServiceConfig::isEnabled)) {
 			LOG.error("No ACTIVE test service found - terminating");
 			Quarkus.asyncExit();
 		}
 
+		long vendorId = stack.getMetaData().getLocalPeer().getVendorId();
+
 		model.getServices().stream()
-			 .filter(ServiceConfig::isEnabled)
-			 .forEach(service -> IntStream.range(0, model.getConcurrency().getNrThreads()).forEach(i -> {
-				 DiameterServiceRunner runner = new DiameterServiceRunner(service,
-																		  this,
-																		  model.getConcurrency().getNrRepeats(),
-																		  model.nextMsisdn(),
-																		  model.getConcurrency().getDestinationHost(),
-																		  model.getConcurrency().getDestinationRealm(),
-																		  vendorId,
-																		  sessionFactory);
-				 runners.add(runner);
-				 runner.initRequest();
-			 }));
+				.filter(ServiceConfig::isEnabled)
+				.forEach(service -> IntStream.range(0, model.getConcurrency().getNrThreads()).forEach(i -> {
+					DiameterServiceRunner runner = new DiameterServiceRunner(service,
+																			 this,
+																			 model.getConcurrency().getNrRepeats(),
+																			 model.nextMsisdn(),
+																			 model.getConcurrency().getDestinationHost(),
+																			 model.getConcurrency().getDestinationRealm(),
+																			 vendorId,
+																			 sessionFactory);
+					runners.add(runner);
+					runner.initRequest();
+				}));
+	}
+
+	public void cancelRunner(DiameterServiceRunner runner)
+	{
+		runners.remove(runner);
+		if (runners.isEmpty()) {
+			stack.destroy();
+			Quarkus.asyncExit();
+		}//if
 	}
 
 	@Override
@@ -184,29 +143,5 @@ public class DiameterTestClient extends CCASessionFactoryImpl implements Network
 				break;
 			}
 		}
-	}//doCreditControlAnswer
-
-	public void cancelRunner(DiameterServiceRunner runner)
-	{
-		runners.remove(runner);
-		if (runners.isEmpty()) {
-			stack.destroy();
-			Quarkus.asyncExit();
-		}//if
-	}
-
-	@Override
-	public Answer processRequest(Request request)
-	{
-		LOG.debug("<< Received Request [{}]",request);
-		try {
-			ServerCCASessionImpl session = sessionFactory.getNewAppSession(request.getSessionId(), ApplicationId.createByAuthAppId(vendorId, 4), ServerCCASession.class, Collections.emptyList());
-			return session.processRequest(request);
-		}
-		catch (InternalException e) {
-			LOG.error(">< Failure handling received request.", e);
-		}
-
-		return null;
 	}
 }

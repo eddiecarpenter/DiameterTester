@@ -25,6 +25,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
+import org.jdiameter.api.IllegalDiameterStateException;
 
 @ApplicationScoped
 @Slf4j
@@ -34,7 +35,7 @@ public class DiameterTestClientBootstrap
 	@Inject
 	DiameterTestClient testClient;
 
-	void onStart(@Observes StartupEvent ev)
+	void onStart(@Observes StartupEvent ev) throws IllegalDiameterStateException
 	{
 		LOG.info("Starting the Diameter Test Client");
 		testClient.runner();
