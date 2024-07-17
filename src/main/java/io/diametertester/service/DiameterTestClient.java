@@ -48,8 +48,7 @@ import java.util.stream.IntStream;
 @Slf4j
 @DiameterServiceOptions(
 		mode = ApplicationMode.CLIENT,
-		application = DiameterApplication.CCA,
-		authApplId = 4L
+		type = DiameterApplication.CCA
 )
 @DiameterService
 public class DiameterTestClient implements ClientCCASessionListener//, NetworkReqListener
