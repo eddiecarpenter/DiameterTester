@@ -51,7 +51,7 @@ import java.util.stream.IntStream;
 		type = DiameterApplication.CCA
 )
 @DiameterService
-public class DiameterTestClient implements ClientCCASessionListener//, NetworkReqListener
+public class DiameterTestClient implements ClientCCASessionListener
 {
 	@Inject
 	@ConfigProperty(name = "testclient.testconfig", defaultValue = "testclient.yaml")
