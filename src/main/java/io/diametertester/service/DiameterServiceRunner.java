@@ -23,15 +23,7 @@ import io.diametertester.exceptions.TestClientException;
 import io.diametertester.model.ServiceConfig;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.jdiameter.api.ApplicationId;
-import org.jdiameter.api.Avp;
-import org.jdiameter.api.AvpDataException;
-import org.jdiameter.api.AvpSet;
-import org.jdiameter.api.IllegalDiameterStateException;
-import org.jdiameter.api.InternalException;
-import org.jdiameter.api.OverloadException;
-import org.jdiameter.api.ResultCode;
-import org.jdiameter.api.RouteException;
+import org.jdiameter.api.*;
 import org.jdiameter.api.cca.ClientCCASession;
 import org.jdiameter.api.cca.events.JCreditControlAnswer;
 import org.jdiameter.api.cca.events.JCreditControlRequest;
@@ -44,7 +36,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.UUID;
 
 @Slf4j
 @Data
@@ -80,14 +71,14 @@ public class DiameterServiceRunner
 
 	public DiameterServiceRunner(ServiceConfig service, DiameterTestClient client, int repeats, String msisdn, String destHost, String destRealm, long vendorId, ISessionFactory sessionFactory)
 	{
-		this.service = service;
-		this.vendorId = vendorId;
-		this.client = client;
+		this.service        = service;
+		this.vendorId       = vendorId;
+		this.client         = client;
 		this.sessionFactory = sessionFactory;
-		this.destHost = destHost;
-		this.destRealm = destRealm;
-		this.msisdn = msisdn;
-		this.repeats = repeats;
+		this.destHost       = destHost;
+		this.destRealm      = destRealm;
+		this.msisdn         = msisdn;
+		this.repeats        = repeats;
 		if (this.repeats <= 0) {
 			this.repeats = 1;
 		}//if
@@ -125,7 +116,8 @@ public class DiameterServiceRunner
 		try {
 			JCreditControlRequest request = new JCreditControlRequestImpl(session, destRealm, destHost);
 
-			AvpSet reqAvps = request.getMessage().getAvps();
+			AvpSet reqAvps = request.getMessage()
+			                        .getAvps();
 			AvpSet vSubscriberId = reqAvps.addGroupedAvp(Avp.SUBSCRIPTION_ID);
 
 
@@ -139,8 +131,8 @@ public class DiameterServiceRunner
 			totalUsed += unitsUsed;
 			reqAvps.addAvp(Avp.VENDOR_ID, vendorId);
 
-			AvpSet vUsedServiceUnitAvp ;
-			AvpSet vRequestServiceUnitAvp ;
+			AvpSet vUsedServiceUnitAvp;
+			AvpSet vRequestServiceUnitAvp;
 
 			switch (service.getServiceType()) {
 				case VOICE -> {
@@ -157,11 +149,15 @@ public class DiameterServiceRunner
 
 					if (unitsUsed > 0) {
 						vUsedServiceUnitAvp = reqAvps.addGroupedAvp(Avp.USED_SERVICE_UNIT);
-						vUsedServiceUnitAvp.addAvp(service.getServiceType().getUnitType().getType(), unitsUsed, true);
+						vUsedServiceUnitAvp.addAvp(service.getServiceType()
+						                                  .getUnitType()
+						                                  .getType(), unitsUsed, true);
 					}//if
 					if (requestType != TERMINATION_REQUEST) {
 						vRequestServiceUnitAvp = reqAvps.addGroupedAvp(Avp.REQUESTED_SERVICE_UNIT);
-						vRequestServiceUnitAvp.addAvp(service.getServiceType().getUnitType().getType(), service.getRequestUnits(), true);
+						vRequestServiceUnitAvp.addAvp(service.getServiceType()
+						                                     .getUnitType()
+						                                     .getType(), service.getRequestUnits(), true);
 					}//if
 				}
 
@@ -178,12 +174,16 @@ public class DiameterServiceRunner
 
 					if (unitsUsed > 0) {
 						vUsedServiceUnitAvp = vMultiCtrl.addGroupedAvp(Avp.USED_SERVICE_UNIT);
-						vUsedServiceUnitAvp.addAvp(service.getServiceType().getUnitType().getType(), unitsUsed, false);
+						vUsedServiceUnitAvp.addAvp(service.getServiceType()
+						                                  .getUnitType()
+						                                  .getType(), unitsUsed, false);
 					}//if
 
 					if (requestType != TERMINATION_REQUEST) {
 						vRequestServiceUnitAvp = vMultiCtrl.addGroupedAvp(Avp.REQUESTED_SERVICE_UNIT);
-						vRequestServiceUnitAvp.addAvp(service.getServiceType().getUnitType().getType(), service.getRequestUnits(), false);
+						vRequestServiceUnitAvp.addAvp(service.getServiceType()
+						                                     .getUnitType()
+						                                     .getType(), service.getRequestUnits(), false);
 					}//if
 				}
 
@@ -192,11 +192,15 @@ public class DiameterServiceRunner
 					reqAvps.addAvp(Avp.SERVICE_IDENTIFIER_CCA, service.getServiceId());
 					if (unitsUsed > 0) {
 						vUsedServiceUnitAvp = reqAvps.addGroupedAvp(Avp.USED_SERVICE_UNIT);
-						vUsedServiceUnitAvp.addAvp(service.getServiceType().getUnitType().getType(), unitsUsed, false);
+						vUsedServiceUnitAvp.addAvp(service.getServiceType()
+						                                  .getUnitType()
+						                                  .getType(), unitsUsed, false);
 					}//if
 					if (requestType != TERMINATION_REQUEST) {
 						vRequestServiceUnitAvp = reqAvps.addGroupedAvp(Avp.REQUESTED_SERVICE_UNIT);
-						vRequestServiceUnitAvp.addAvp(service.getServiceType().getUnitType().getType(), service.getRequestUnits(), false);
+						vRequestServiceUnitAvp.addAvp(service.getServiceType()
+						                                     .getUnitType()
+						                                     .getType(), service.getRequestUnits(), false);
 					}//if
 
 					AvpSet smsServiceInfo = reqAvps.addGroupedAvp(Avp.SERVICE_INFORMATION, 10415, false, false);
@@ -232,6 +236,7 @@ public class DiameterServiceRunner
 			DiameterUtilities.printMessage(request.getMessage());
 			startTimer();
 			mySession = session;
+
 			session.sendCreditControlRequest(request);
 		}//try
 		catch (IllegalDiameterStateException | InternalException | OverloadException | RouteException ex) {
@@ -244,13 +249,13 @@ public class DiameterServiceRunner
 	{
 		if (repeats > 0) {
 			try {
-				totalUnits = service.getUnits();
-				totalUsed = 0;
-				requestNr = 0;
+				totalUnits  = service.getUnits();
+				totalUsed   = 0;
+				requestNr   = 0;
 				requestType = INITIAL_REQUEST;
-				sessionId = UUID.randomUUID().toString();
 				ApplicationId application = ApplicationId.createByAuthAppId(vendorId, 4);
-				ClientCCASessionImpl session = sessionFactory.getNewAppSession(sessionId, application, ClientCCASession.class, Collections.emptyList());
+				ClientCCASessionImpl session = sessionFactory.getNewAppSession(null, application, ClientCCASession.class, Collections.emptyList());
+				sessionId = session.getSessionId();
 				sendRequest(session, 0);
 				repeats--;
 				return true;
@@ -271,9 +276,11 @@ public class DiameterServiceRunner
 		}//if
 
 		try {
-			AvpSet answerAvps = answer.getMessage().getAvps();
+			AvpSet answerAvps = answer.getMessage()
+			                          .getAvps();
 
-			int vResultCode = answerAvps.getAvp(Avp.RESULT_CODE).getInteger32();
+			int vResultCode = answerAvps.getAvp(Avp.RESULT_CODE)
+			                            .getInteger32();
 			LOG.info("{}::{} - Answer for '{}' received in {}ms ({}) - Result {}", sessionId, msisdn, service.getService(), getElapsedTime(), requestType, vResultCode);
 			if (requestType == TERMINATION_REQUEST) {
 				LOG.info("{}::{} - Session for '{}' terminated", sessionId, msisdn, service.getService());
@@ -282,7 +289,8 @@ public class DiameterServiceRunner
 					Thread.sleep(1000L);
 				}//try
 				catch (InterruptedException ex) {
-					Thread.currentThread().interrupt();
+					Thread.currentThread()
+					      .interrupt();
 				}//catch
 
 				return !initRequest();
@@ -301,10 +309,18 @@ public class DiameterServiceRunner
 				grantedUnitsAvp = serviceControl.getAvp(Avp.GRANTED_SERVICE_UNIT);
 				if (grantedUnitsAvp != null) {
 					if (service.getServiceType() == ServiceType.VOICE) {
-						unitsGranted = grantedUnitsAvp.getGrouped().getAvp(service.getServiceType().getUnitType().getType()).getInteger32();
+						unitsGranted = grantedUnitsAvp.getGrouped()
+						                              .getAvp(service.getServiceType()
+						                                             .getUnitType()
+						                                             .getType())
+						                              .getInteger32();
 					}//if
 					else {
-						unitsGranted = grantedUnitsAvp.getGrouped().getAvp(service.getServiceType().getUnitType().getType()).getInteger64();
+						unitsGranted = grantedUnitsAvp.getGrouped()
+						                              .getAvp(service.getServiceType()
+						                                             .getUnitType()
+						                                             .getType())
+						                              .getInteger64();
 					}//else
 				}//if
 
@@ -323,14 +339,16 @@ public class DiameterServiceRunner
 					}//if
 					totalUnits -= unitsUsed;
 
-					long waitTime = (unitsUsed / service.getUsageRateSec()) / service.getUsageRate().toSeconds();
+					long waitTime = (unitsUsed / service.getUsageRateSec()) / service.getUsageRate()
+					                                                                 .toSeconds();
 					LOG.info("{}::{} - For '{}' Granted {} units, {} units used, {} units remains. Sleep time {} seconds", sessionId, msisdn, service.getService(), unitsGranted, unitsUsed, totalUnits, waitTime);
 					try {
 						//						Thread.sleep(waitTime *waitTime * 1000L);
 						Thread.sleep(1000L);
 					}//try
 					catch (InterruptedException ex) {
-						Thread.currentThread().interrupt();
+						Thread.currentThread()
+						      .interrupt();
 					}//catch
 				}//if
 
@@ -338,7 +356,9 @@ public class DiameterServiceRunner
 				sendRequest(session, unitsUsed);
 			}//if
 			else {
-				LOG.debug("{}::{} - Terminating unsuccessful session", msisdn, session.getSessionId());
+				String reason = answerAvps.getAvp(Avp.ERROR_MESSAGE) != null ? answerAvps.getAvp(Avp.ERROR_MESSAGE)
+				                                                                         .getUTF8String() : "Unknown reason";
+				LOG.debug("{}::{} - Terminating unsuccessful session - {}", msisdn, session.getSessionId(), reason);
 				return !initRequest();
 			}//else
 		}//try

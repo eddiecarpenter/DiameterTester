@@ -22,7 +22,9 @@ import io.diametertester.exceptions.TestClientException;
 import io.diametertester.mapper.LoadRunnerModelMapper;
 import io.diametertester.model.ServiceConfig;
 import io.diametertester.model.TestClientModel;
-import io.go.diameter.*;
+import io.quarkiverse.diameter.DiameterConfig;
+import io.quarkiverse.diameter.DiameterService;
+import io.quarkiverse.diameter.DiameterServiceOptions;
 import io.quarkus.runtime.Quarkus;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -46,101 +48,87 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Slf4j
-@DiameterServiceOptions(
-		mode = ApplicationMode.CLIENT,
-		type = DiameterApplication.CCA
-)
+@DiameterServiceOptions(timeOut = 3000)
 @DiameterService
 public class DiameterTestClient implements ClientCCASessionListener
 {
-	@Inject
-	@ConfigProperty(name = "testclient.testconfig", defaultValue = "testclient.yaml")
-	String testClientConfig;
+    @Inject
+    @ConfigProperty(name = "testclient.testconfig", defaultValue = "testclient.yaml")
+    String testClientConfig;
 
-	@Inject
-	ManagedExecutor executor;
+    @Inject
+    ManagedExecutor executor;
 
-	@DiameterConfig
-	Stack stack;
+    @DiameterConfig
+    Stack stack;
 
-	ISessionFactory sessionFactory;
+    ISessionFactory sessionFactory;
 
-	private final List<DiameterServiceRunner> runners = new ArrayList<>();
+    private final List<DiameterServiceRunner> runners = new ArrayList<>();
 
-	private TestClientModel loadConfigFile()
-	{
-		LoadRunnerModelMapper mapper = new LoadRunnerModelMapper();
+    private TestClientModel loadConfigFile()
+    {
+        LoadRunnerModelMapper mapper = new LoadRunnerModelMapper();
 
-		try (InputStream inputStream = new FileInputStream(testClientConfig)) {
-			String yaml = new BufferedReader(
-					new InputStreamReader(inputStream, StandardCharsets.UTF_8))
-					.lines()
-					.collect(Collectors.joining("\n"));
-			return mapper.yamlToModel(yaml);
-		}//try
-		catch (IOException ex) {
-			throw new TestClientException("File not found - " + testClientConfig);
-		}
-	}
+        try (InputStream inputStream = new FileInputStream(testClientConfig)) {
+            String yaml = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8)).lines().collect(Collectors.joining("\n"));
+            return mapper.yamlToModel(yaml);
+        }//try
+        catch (IOException ex) {
+            throw new TestClientException("File not found - " + testClientConfig);
+        }
+    }
 
-	public void runner() throws IllegalDiameterStateException
-	{
-		LOG.info("Loading the load testing configuration");
-		TestClientModel model = loadConfigFile();
+    public void runner() throws IllegalDiameterStateException
+    {
+        LOG.info("Loading the load testing configuration");
+        TestClientModel model = loadConfigFile();
 
-		//startService();
-		sessionFactory = (ISessionFactory) stack.getSessionFactory();
-		if (model.getServices().stream()
-				.noneMatch(ServiceConfig::isEnabled)) {
-			LOG.error("No ACTIVE test service found - terminating");
-			Quarkus.asyncExit();
-		}
+        sessionFactory = (ISessionFactory) stack.getSessionFactory();
+        if (model.getServices().stream().noneMatch(ServiceConfig::isEnabled)) {
+            LOG.error("No ACTIVE test service found - terminating");
+            Quarkus.asyncExit();
+        }
 
-		long vendorId = stack.getMetaData().getLocalPeer().getVendorId();
+        long vendorId = stack.getMetaData().getLocalPeer().getVendorId();
 
-		model.getServices().stream()
-				.filter(ServiceConfig::isEnabled)
-				.forEach(service -> IntStream.range(0, model.getConcurrency().getNrThreads()).forEach(i -> {
-					DiameterServiceRunner runner = new DiameterServiceRunner(service,
-																			 this,
-																			 model.getConcurrency().getNrRepeats(),
-																			 model.nextMsisdn(),
-																			 model.getConcurrency().getDestinationHost(),
-																			 model.getConcurrency().getDestinationRealm(),
-																			 vendorId,
-																			 sessionFactory);
-					runners.add(runner);
-					runner.initRequest();
-				}));
-	}
+        model.getServices().stream()
+             .filter(ServiceConfig::isEnabled)
+             .forEach(service -> IntStream.range(0, model.getConcurrency().getNrThreads())
+                                          .forEach(i -> {
+                                              DiameterServiceRunner runner = new DiameterServiceRunner(service, this, model.getConcurrency().getNrRepeats(), model.nextMsisdn(), model.getConcurrency().getDestinationHost(), model.getConcurrency().getDestinationRealm(), vendorId, sessionFactory);
+                                              runners.add(runner);
+                                              runner.initRequest();
+                                          }));
+    }
 
-	public void cancelRunner(DiameterServiceRunner runner)
-	{
-		runners.remove(runner);
-		if (runners.isEmpty()) {
-			stack.destroy();
-			Quarkus.asyncExit();
-		}//if
-	}
+    public void cancelRunner(DiameterServiceRunner runner)
+    {
+        runners.remove(runner);
+        if (runners.isEmpty()) {
+            stack.destroy();
+            Quarkus.asyncExit();
+        }//if
+    }
 
-	@Override
-	public void doCreditControlAnswer(ClientCCASession session, JCreditControlRequest request, JCreditControlAnswer answer) throws InternalException
-	{
-		LOG.debug("Received Answer:");
-		DiameterUtilities.printMessage(answer.getMessage());
+    @Override
+    public void doCreditControlAnswer(ClientCCASession session, JCreditControlRequest request, JCreditControlAnswer answer) throws InternalException
+    {
+        LOG.debug("Received Answer:");
+        DiameterUtilities.printMessage(answer.getMessage());
 
-		String sessionId = answer.getMessage().getSessionId();
-		LOG.debug("Search for linked runner. Total active runners: {}", runners.size());
+        String sessionId = answer.getMessage().getSessionId();
+        LOG.debug("Search for linked runner. Total active runners: {}", runners.size());
 
-		for (DiameterServiceRunner runner : runners) {
-			if (runner.getSessionId().equals(sessionId)) {
-				executor.runAsync(() -> {
-					if (runner.doCreditControlAnswer(session, request, answer)) {
-						cancelRunner(runner);
-					}//if
-				});
-				break;
-			}
-		}
-	}
+        for (DiameterServiceRunner runner : runners) {
+            if (runner.getSessionId().equals(sessionId)) {
+                executor.runAsync(() -> {
+                    if (runner.doCreditControlAnswer(session, request, answer)) {
+                        cancelRunner(runner);
+                    }//if
+                });
+                break;
+            }
+        }
+    }
 }

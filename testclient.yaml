@@ -1,6 +1,6 @@
 numbers:
   - 0828938386
-  #  - 0650100079 # Legacy bundles
+#  - 0650100079
 #  - 0601231315
 #  - 0601231316
 #  - 0601231317
@@ -15,8 +15,8 @@ numbers:
 
 concurrency:
   nrThreads: 1
-  destinationHost: ocs.frei.one
-  destinationRealm: server.tradeswitch.com
+  destinationHost: ocs.demo.org
+  destinationRealm: server.jdiameter.com
   nrRepeats: 1
 
 services:
@@ -41,7 +41,7 @@ services:
     usageRateSec: 40mb  # The rate the units are consumed
     usageRate: 30s
     usagePercentage: 0.9
-    
+
 #  - service: Consume data
 #    enabled: true
 #    serviceId: 400
