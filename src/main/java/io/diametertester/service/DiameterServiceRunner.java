@@ -41,6 +41,10 @@ import java.util.TimerTask;
 @Data
 public class DiameterServiceRunner
 {
+	// USSD-Information Grouped AVP and its children (from 3GPP TS 32.299)
+	private static final int AVP_USSD_INFORMATION = 885;
+	private static final int AVP_USSD_STRING = 827;
+
 	private static final int INITIAL_REQUEST = 1;
 	private static final int UPDATE_REQUEST = 2;
 	private static final int TERMINATION_REQUEST = 3;
@@ -140,12 +144,10 @@ public class DiameterServiceRunner
 					reqAvps.addAvp(Avp.SERVICE_IDENTIFIER_CCA, service.getServiceId());
 
 					AvpSet voiceServiceInfo = reqAvps.addGroupedAvp(Avp.SERVICE_INFORMATION, 10415, false, false);
-					AvpSet inInfo = voiceServiceInfo.addGroupedAvp(IN_INFORMATION, 2011, false, false);
-					inInfo.addAvp(CALLING_PARTY_ADDRESS, msisdn, 2011, false, false, false);
-					inInfo.addAvp(CALLED_PARTY_ADDRESS, service.getDestination(), 2011, false, false, false);
-					inInfo.addAvp(REAL_CALLED_NUMBER, service.getDestination(), 2011, false, false, false);
-					inInfo.addAvp(CONNECT_CALLED_NUMBER, service.getDestination(), 2011, false, false, false);
-					inInfo.addAvp(CHARGE_FLOW_TYPE, 0, 2011, false, false, true);
+					AvpSet inInfo = voiceServiceInfo.addGroupedAvp(Avp.IMS_INFORMATION, 10415, false, false);
+					inInfo.addAvp(Avp.CALLING_PARTY_ADDRESS, msisdn, 10415, false, false, false);
+					inInfo.addAvp(Avp.REQUESTED_PARTY_ADDRESS, service.getDestination(), 10415, false, false, false);
+					inInfo.addAvp(Avp.ROLE_OF_NODE, 0, 10415, false, false, true);
 
 					if (unitsUsed > 0) {
 						vUsedServiceUnitAvp = reqAvps.addGroupedAvp(Avp.USED_SERVICE_UNIT);
@@ -205,11 +207,34 @@ public class DiameterServiceRunner
 
 					AvpSet smsServiceInfo = reqAvps.addGroupedAvp(Avp.SERVICE_INFORMATION, 10415, false, false);
 					AvpSet smsInfo = smsServiceInfo.addGroupedAvp(Avp.SMS_INFORMATION, 10415, false, false);
-
+					if (requestType == TERMINATION_REQUEST) {
+						smsInfo.addAvp(Avp.SM_STATUS, 0, 10415, false, false, false);
+					}
 					AvpSet vRecInfo = smsInfo.addGroupedAvp(Avp.RECIPIENT_INFO, 10415, false, false);
 					AvpSet vDestAddr = vRecInfo.addGroupedAvp(Avp.RECIPIENT_ADDRESS, 10415, false, false);
-					vDestAddr.addAvp(Avp.ADDRESS_TYPE, 1, 10415, false, false, true);
+					vDestAddr.addAvp(Avp.ADDRESS_TYPE, 0, 10415, false, false, false);
 					vDestAddr.addAvp(Avp.ADDRESS_DATA, service.getDestination(), 10415, false, false, false);
+				}
+				case USSD, USSD2 -> {
+					reqAvps.addAvp(Avp.SERVICE_CONTEXT_ID, service.getContext(), false);
+					reqAvps.addAvp(Avp.SERVICE_IDENTIFIER_CCA, service.getServiceId());
+
+					AvpSet voiceServiceInfo = reqAvps.addGroupedAvp(Avp.SERVICE_INFORMATION, 10415, false, false);
+					AvpSet inInfo = voiceServiceInfo.addGroupedAvp(AVP_USSD_INFORMATION, 10415, false, false);
+					inInfo.addAvp(AVP_USSD_STRING, service.getDestination(), 10415, false, false, false);
+
+					if (unitsUsed > 0) {
+						vUsedServiceUnitAvp = reqAvps.addGroupedAvp(Avp.USED_SERVICE_UNIT);
+						vUsedServiceUnitAvp.addAvp(service.getServiceType()
+						                                  .getUnitType()
+						                                  .getType(), unitsUsed, true);
+					}//if
+					if (requestType != TERMINATION_REQUEST) {
+						vRequestServiceUnitAvp = reqAvps.addGroupedAvp(Avp.REQUESTED_SERVICE_UNIT);
+						vRequestServiceUnitAvp.addAvp(service.getServiceType()
+						                                     .getUnitType()
+						                                     .getType(), service.getRequestUnits(), true);
+					}//if
 				}
 				default -> throw new TestClientException("Unknown service type " + service.getServiceType());
 			}//switch
@@ -308,7 +333,7 @@ public class DiameterServiceRunner
 				}//if
 				grantedUnitsAvp = serviceControl.getAvp(Avp.GRANTED_SERVICE_UNIT);
 				if (grantedUnitsAvp != null) {
-					if (service.getServiceType() == ServiceType.VOICE) {
+					if (service.getServiceType() == ServiceType.VOICE || service.getServiceType() == ServiceType.USSD2) {
 						unitsGranted = grantedUnitsAvp.getGrouped()
 						                              .getAvp(service.getServiceType()
 						                                             .getUnitType()
@@ -320,7 +345,7 @@ public class DiameterServiceRunner
 						                              .getAvp(service.getServiceType()
 						                                             .getUnitType()
 						                                             .getType())
-						                              .getInteger64();
+						                              .getUnsigned64();
 					}//else
 				}//if
 
@@ -339,8 +364,7 @@ public class DiameterServiceRunner
 					}//if
 					totalUnits -= unitsUsed;
 
-					long waitTime = (unitsUsed / service.getUsageRateSec()) / service.getUsageRate()
-					                                                                 .toSeconds();
+					long waitTime = (unitsUsed / service.getUsageRateSec()) / service.getUsageRate().toSeconds();
 					LOG.info("{}::{} - For '{}' Granted {} units, {} units used, {} units remains. Sleep time {} seconds", sessionId, msisdn, service.getService(), unitsGranted, unitsUsed, totalUnits, waitTime);
 					try {
 						//						Thread.sleep(waitTime *waitTime * 1000L);

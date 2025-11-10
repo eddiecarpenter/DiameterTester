@@ -9,12 +9,12 @@
     <version>1.0.0</version>
 
     <properties>
-        <lombok.version>1.18.32</lombok.version>
-        <jdiameter.version>2.0.6-SNAPSHOT</jdiameter.version>
+        <lombok.version>1.18.38</lombok.version>
+        <jdiameter.version>2.3.0</jdiameter.version>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <quarkus.platform.version>3.14.4</quarkus.platform.version>
+        <quarkus.platform.version>3.21.3</quarkus.platform.version>
     </properties>
 
     <dependencyManagement>

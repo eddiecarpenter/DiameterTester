@@ -1,27 +1,15 @@
 numbers:
-  - 0828938386
-#  - 0650100079
-#  - 0601231315
-#  - 0601231316
-#  - 0601231317
-#  - 0601231318
-#  - 0650100204
-#  - 0650100205
-#  - 0650100206
-#  - 0650100207
-#  - 0650100208
-#  - 0650100209
-#  - 0650100210
+  - 27828938386
 
 concurrency:
   nrThreads: 1
-  destinationHost: ocs.demo.org
-  destinationRealm: server.jdiameter.com
+  destinationHost: ocs.frei.one
+  destinationRealm: server.tradeswitch.com
   nrRepeats: 1
 
 services:
   - service: Voice Call
-    enabled: true
+    enabled: false
     serviceId: 0
     context: voice@huawei.com
     serviceType: VOICE
@@ -31,25 +19,36 @@ services:
     usageRateSec: 5s # The rate the units are consumed
 
   - service: Consume Data
-    enabled: false
+    enabled: true
     serviceId: 400
     context: scg@huawei.com
-    ratingGroup: 100100100
+    ratingGroup: 999
     serviceType: DATA
-    units: 10mb
+    units: 5mb
     requestUnits: 500kb
     usageRateSec: 40mb  # The rate the units are consumed
     usageRate: 30s
     usagePercentage: 0.9
 
-#  - service: Consume data
-#    enabled: true
-#    serviceId: 400
-#    context: scg@huawei.com
-#    ratingGroup: 100100100
-#    serviceType: DATA
-#    units: 10mb
-#    requestUnits: 500kb
-#    usageRateSec: 40mb  # The rate the units are consumed
-#    usageRate: 1m
-#    usagePercentage: 0.9
+  - service: Send SMS
+    enabled: false
+    serviceId: 1
+    destination: 0650100300
+    context: sms@huawei.com
+    ratingGroup: 1
+    serviceType: SMS
+    units: 1
+    usageRateSec: 1
+    usageRate: 1s
+    requestUnits: 1
+
+  - service: Send USSD2
+    enabled: false
+    serviceId: 1
+    destination: "*400*1#"
+    context: ussd@huawei.com
+    ratingGroup: 1
+    serviceType: USSD2
+    units: 35s
+    requestUnits: 5s
+    usageRateSec: 5s # The rate the units are consumed
