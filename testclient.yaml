@@ -21,21 +21,29 @@ services:
   - service: Consume Data
     enabled: true
     serviceId: 400
-    context: scg@huawei.com
-    ratingGroup: 999
     serviceType: DATA
-    units: 5mb
-    requestUnits: 500kb
+    context: scg@huawei.com
+    multiService:
+      - ratingGroup: 999
+        units: 5mb
+        requestUnits: 0kb
+    #      - ratingGroup: 100103800
+    #        units: 1mb
+    #        requestUnits: 50kb
+    #      - ratingGroup: 100200201
+    #        units: 2mb
+    #        requestUnits: 100kb
+
     usageRateSec: 40mb  # The rate the units are consumed
     usageRate: 30s
     usagePercentage: 0.9
+
 
   - service: Send SMS
     enabled: false
     serviceId: 1
     destination: 0650100300
     context: sms@huawei.com
-    ratingGroup: 1
     serviceType: SMS
     units: 1
     usageRateSec: 1
@@ -47,7 +55,6 @@ services:
     serviceId: 1
     destination: "*400*1#"
     context: ussd@huawei.com
-    ratingGroup: 1
     serviceType: USSD2
     units: 35s
     requestUnits: 5s

@@ -20,6 +20,7 @@ package io.diametertester.service;
 
 import io.diametertester.enums.ServiceType;
 import io.diametertester.exceptions.TestClientException;
+import io.diametertester.model.Service;
 import io.diametertester.model.ServiceConfig;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -32,10 +33,7 @@ import org.jdiameter.client.impl.app.cca.ClientCCASessionImpl;
 import org.jdiameter.common.impl.DiameterUtilities;
 import org.jdiameter.common.impl.app.cca.JCreditControlRequestImpl;
 
-import java.util.Collections;
-import java.util.Date;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 
 @Slf4j
 @Data
@@ -56,13 +54,12 @@ public class DiameterServiceRunner
 	private static final int CONNECT_CALLED_NUMBER = 20373;
 	private static final int CHARGE_FLOW_TYPE = 20339;
 
-	private final ServiceConfig service;
+	private final ServiceConfig serviceConfig;
 	private final ISessionFactory sessionFactory;
 	private final long vendorId;
 	private final String msisdn;
 	private final DiameterTestClient client;
-	private long totalUnits = 0;
-	private long totalUsed = 0;
+	private final Map<Integer, Service> serviceMap;
 	private String sessionId;
 	private int requestType;
 	private int requestNr;
@@ -73,9 +70,9 @@ public class DiameterServiceRunner
 	private ClientCCASession mySession;
 	private long start;
 
-	public DiameterServiceRunner(ServiceConfig service, DiameterTestClient client, int repeats, String msisdn, String destHost, String destRealm, long vendorId, ISessionFactory sessionFactory)
+	public DiameterServiceRunner(ServiceConfig serviceConfig, DiameterTestClient client, int repeats, String msisdn, String destHost, String destRealm, long vendorId, ISessionFactory sessionFactory)
 	{
-		this.service        = service;
+		this.serviceConfig  = serviceConfig;
 		this.vendorId       = vendorId;
 		this.client         = client;
 		this.sessionFactory = sessionFactory;
@@ -83,6 +80,8 @@ public class DiameterServiceRunner
 		this.destRealm      = destRealm;
 		this.msisdn         = msisdn;
 		this.repeats        = repeats;
+		this.serviceMap     = serviceConfig.getServiceMap();
+
 		if (this.repeats <= 0) {
 			this.repeats = 1;
 		}//if
@@ -115,7 +114,7 @@ public class DiameterServiceRunner
 		return System.currentTimeMillis() - start;
 	}
 
-	private void sendRequest(ClientCCASession session, long unitsUsed) throws InternalException
+	private void sendRequest(ClientCCASession session) throws InternalException
 	{
 		try {
 			JCreditControlRequest request = new JCreditControlRequestImpl(session, destRealm, destHost);
@@ -130,81 +129,46 @@ public class DiameterServiceRunner
 			vSubscriberId.addAvp(Avp.SUBSCRIPTION_ID_DATA, msisdn, false);
 
 			reqAvps.addAvp(Avp.CC_REQUEST_TYPE, requestType);
-			reqAvps.addAvp(Avp.CC_REQUEST_NUMBER, requestNr);
-			requestNr++;
-			totalUsed += unitsUsed;
+			reqAvps.addAvp(Avp.CC_REQUEST_NUMBER, requestNr++);
 			reqAvps.addAvp(Avp.VENDOR_ID, vendorId);
+			reqAvps.addAvp(Avp.SERVICE_CONTEXT_ID, serviceConfig.getContext(), false);
+			reqAvps.addAvp(Avp.SERVICE_IDENTIFIER_CCA, serviceConfig.getServiceId());
 
-			AvpSet vUsedServiceUnitAvp;
-			AvpSet vRequestServiceUnitAvp;
+			String reqType = switch (requestType) {
+				case INITIAL_REQUEST -> {
+					LOG.info("{}::{} - Call Setup", session.getSessionId(), msisdn);
+					yield "SETUP";
+				}
+				case UPDATE_REQUEST -> {
+					LOG.info("{}::{} - Call Update", session.getSessionId(), msisdn);
+					yield "UPDATE";
+				}
+				case TERMINATION_REQUEST -> {
+					LOG.info("{}::{} - Call Terminated", session.getSessionId(), msisdn);
+					yield "TERMINATE";
+				}
+				default -> {
+					LOG.info("{}::{} - Call Event", session.getSessionId(), msisdn);
+					yield "EVENT";
+				}
+			};
 
-			switch (service.getServiceType()) {
+			switch (serviceConfig.getServiceType()) {
 				case VOICE -> {
-					reqAvps.addAvp(Avp.SERVICE_CONTEXT_ID, service.getContext(), false);
-					reqAvps.addAvp(Avp.SERVICE_IDENTIFIER_CCA, service.getServiceId());
-
 					AvpSet voiceServiceInfo = reqAvps.addGroupedAvp(Avp.SERVICE_INFORMATION, 10415, false, false);
 					AvpSet inInfo = voiceServiceInfo.addGroupedAvp(Avp.IMS_INFORMATION, 10415, false, false);
 					inInfo.addAvp(Avp.CALLING_PARTY_ADDRESS, msisdn, 10415, false, false, false);
-					inInfo.addAvp(Avp.REQUESTED_PARTY_ADDRESS, service.getDestination(), 10415, false, false, false);
+					inInfo.addAvp(Avp.REQUESTED_PARTY_ADDRESS, serviceConfig.getDestination(), 10415, false, false, false);
 					inInfo.addAvp(Avp.ROLE_OF_NODE, 0, 10415, false, false, true);
-
-					if (unitsUsed > 0) {
-						vUsedServiceUnitAvp = reqAvps.addGroupedAvp(Avp.USED_SERVICE_UNIT);
-						vUsedServiceUnitAvp.addAvp(service.getServiceType()
-						                                  .getUnitType()
-						                                  .getType(), unitsUsed, true);
-					}//if
-					if (requestType != TERMINATION_REQUEST) {
-						vRequestServiceUnitAvp = reqAvps.addGroupedAvp(Avp.REQUESTED_SERVICE_UNIT);
-						vRequestServiceUnitAvp.addAvp(service.getServiceType()
-						                                     .getUnitType()
-						                                     .getType(), service.getRequestUnits(), true);
-					}//if
 				}
 
 				case DATA -> {
-					reqAvps.addAvp(Avp.SERVICE_CONTEXT_ID, service.getContext(), false);
-					reqAvps.addAvp(Avp.MULTIPLE_SERVICES_INDICATOR, 1, true);
-					AvpSet vMultiCtrl = reqAvps.addGroupedAvp(Avp.MULTIPLE_SERVICES_CREDIT_CONTROL, false, false);
-					reqAvps.addAvp(Avp.SERVICE_IDENTIFIER_CCA, service.getServiceId());
-					vMultiCtrl.addAvp(Avp.RATING_GROUP, service.getRatingGroup(), true);
-
 					AvpSet dataServiceInfo = reqAvps.addGroupedAvp(Avp.SERVICE_INFORMATION, 10415, false, false);
 					AvpSet psInfo = dataServiceInfo.addGroupedAvp(Avp.PS_INFORMATION, 10415, false, false);
 					psInfo.addAvp(Avp.TGPP_CHARGING_ID, 12345, 10415, false, false, true);
-
-					if (unitsUsed > 0) {
-						vUsedServiceUnitAvp = vMultiCtrl.addGroupedAvp(Avp.USED_SERVICE_UNIT);
-						vUsedServiceUnitAvp.addAvp(service.getServiceType()
-						                                  .getUnitType()
-						                                  .getType(), unitsUsed, false);
-					}//if
-
-					if (requestType != TERMINATION_REQUEST) {
-						vRequestServiceUnitAvp = vMultiCtrl.addGroupedAvp(Avp.REQUESTED_SERVICE_UNIT);
-						vRequestServiceUnitAvp.addAvp(service.getServiceType()
-						                                     .getUnitType()
-						                                     .getType(), service.getRequestUnits(), false);
-					}//if
 				}
 
 				case SMS -> {
-					reqAvps.addAvp(Avp.SERVICE_CONTEXT_ID, service.getContext(), false);
-					reqAvps.addAvp(Avp.SERVICE_IDENTIFIER_CCA, service.getServiceId());
-					if (unitsUsed > 0) {
-						vUsedServiceUnitAvp = reqAvps.addGroupedAvp(Avp.USED_SERVICE_UNIT);
-						vUsedServiceUnitAvp.addAvp(service.getServiceType()
-						                                  .getUnitType()
-						                                  .getType(), unitsUsed, false);
-					}//if
-					if (requestType != TERMINATION_REQUEST) {
-						vRequestServiceUnitAvp = reqAvps.addGroupedAvp(Avp.REQUESTED_SERVICE_UNIT);
-						vRequestServiceUnitAvp.addAvp(service.getServiceType()
-						                                     .getUnitType()
-						                                     .getType(), service.getRequestUnits(), false);
-					}//if
-
 					AvpSet smsServiceInfo = reqAvps.addGroupedAvp(Avp.SERVICE_INFORMATION, 10415, false, false);
 					AvpSet smsInfo = smsServiceInfo.addGroupedAvp(Avp.SMS_INFORMATION, 10415, false, false);
 					if (requestType == TERMINATION_REQUEST) {
@@ -213,55 +177,54 @@ public class DiameterServiceRunner
 					AvpSet vRecInfo = smsInfo.addGroupedAvp(Avp.RECIPIENT_INFO, 10415, false, false);
 					AvpSet vDestAddr = vRecInfo.addGroupedAvp(Avp.RECIPIENT_ADDRESS, 10415, false, false);
 					vDestAddr.addAvp(Avp.ADDRESS_TYPE, 0, 10415, false, false, false);
-					vDestAddr.addAvp(Avp.ADDRESS_DATA, service.getDestination(), 10415, false, false, false);
+					vDestAddr.addAvp(Avp.ADDRESS_DATA, serviceConfig.getDestination(), 10415, false, false, false);
 				}
 				case USSD, USSD2 -> {
-					reqAvps.addAvp(Avp.SERVICE_CONTEXT_ID, service.getContext(), false);
-					reqAvps.addAvp(Avp.SERVICE_IDENTIFIER_CCA, service.getServiceId());
-
 					AvpSet voiceServiceInfo = reqAvps.addGroupedAvp(Avp.SERVICE_INFORMATION, 10415, false, false);
 					AvpSet inInfo = voiceServiceInfo.addGroupedAvp(AVP_USSD_INFORMATION, 10415, false, false);
-					inInfo.addAvp(AVP_USSD_STRING, service.getDestination(), 10415, false, false, false);
-
-					if (unitsUsed > 0) {
-						vUsedServiceUnitAvp = reqAvps.addGroupedAvp(Avp.USED_SERVICE_UNIT);
-						vUsedServiceUnitAvp.addAvp(service.getServiceType()
-						                                  .getUnitType()
-						                                  .getType(), unitsUsed, true);
-					}//if
-					if (requestType != TERMINATION_REQUEST) {
-						vRequestServiceUnitAvp = reqAvps.addGroupedAvp(Avp.REQUESTED_SERVICE_UNIT);
-						vRequestServiceUnitAvp.addAvp(service.getServiceType()
-						                                     .getUnitType()
-						                                     .getType(), service.getRequestUnits(), true);
-					}//if
+					inInfo.addAvp(AVP_USSD_STRING, serviceConfig.getDestination(), 10415, false, false, false);
 				}
-				default -> throw new TestClientException("Unknown service type " + service.getServiceType());
+
+				default -> throw new TestClientException("Unknown serviceConfig type " + serviceConfig.getServiceType());
 			}//switch
 
-			String reqType = "SETUP";
-			switch (requestType) {
-				case INITIAL_REQUEST -> {
-					reqType = "SETUP";
-					LOG.info("{}::{} - Call Setup", session.getSessionId(), msisdn);
-				}
-				case UPDATE_REQUEST -> {
-					reqType = "UPDATE";
-					LOG.info("{}::{} - Call Update", session.getSessionId(), msisdn);
-				}
-				case TERMINATION_REQUEST -> {
-					reqType = "TERMINATE";
-					LOG.info("{}::{} - Call Terminated", session.getSessionId(), msisdn);
-				}
-			}//switch
 
-			LOG.info("{}::{} - Sending {} message, requesting for {} units, marking {} units as used, total used {}", session.getSessionId(), msisdn, reqType, service.getRequestUnits(), unitsUsed, totalUsed);
+			if (serviceConfig.hasMultiServices()) {
+				reqAvps.addAvp(Avp.MULTIPLE_SERVICES_INDICATOR, 1, serviceConfig.hasMultiServiceIndicator());
+			} else {
+				reqAvps.addAvp(Avp.MULTIPLE_SERVICES_INDICATOR, 0, true);
+			}
+
+			serviceMap.forEach((ratingGroup, service) -> {
+				AvpSet serviceControl;
+				if (serviceConfig.hasMultiServices()) {
+					serviceControl = reqAvps.addGroupedAvp(Avp.MULTIPLE_SERVICES_CREDIT_CONTROL, false, false);
+					serviceControl.addAvp(Avp.RATING_GROUP, ratingGroup, true);
+				} else {
+					serviceControl = reqAvps;
+				}
+
+				if (service.getUnitUsed() > 0) {
+					AvpSet usedServiceUnitAvp = serviceControl.addGroupedAvp(Avp.USED_SERVICE_UNIT);
+					usedServiceUnitAvp.addAvp(serviceConfig.getServiceType().getUnitType().getType(),
+					                          service.getUnitUsed(),
+					                          serviceConfig.getServiceType().getUnitType().getType() == Avp.CC_TIME);
+				}//if
+
+				if (requestType != TERMINATION_REQUEST && service.getRequestUnits() > 0) {
+					AvpSet requestServiceUnitAvp = serviceControl.addGroupedAvp(Avp.REQUESTED_SERVICE_UNIT);
+					requestServiceUnitAvp.addAvp(serviceConfig.getServiceType().getUnitType().getType(),
+					                             service.getRequestUnits(),
+					                             serviceConfig.getServiceType().getUnitType().getType() == Avp.CC_TIME);
+				}//if
+
+				LOG.info("{}::{} - Sending {} message, requesting for {} units, marking {} units as used, total used {}", session.getSessionId(), msisdn, reqType, service.getRequestUnits(), service.getUnitUsed(), service.getTotalUsed());
+			});
 
 			LOG.trace("Sending request:");
 			DiameterUtilities.printMessage(request.getMessage());
 			startTimer();
 			mySession = session;
-
 			session.sendCreditControlRequest(request);
 		}//try
 		catch (IllegalDiameterStateException | InternalException | OverloadException | RouteException ex) {
@@ -274,14 +237,12 @@ public class DiameterServiceRunner
 	{
 		if (repeats > 0) {
 			try {
-				totalUnits  = service.getUnits();
-				totalUsed   = 0;
 				requestNr   = 0;
 				requestType = INITIAL_REQUEST;
 				ApplicationId application = ApplicationId.createByAuthAppId(vendorId, 4);
 				ClientCCASessionImpl session = sessionFactory.getNewAppSession(null, application, ClientCCASession.class, Collections.emptyList());
 				sessionId = session.getSessionId();
-				sendRequest(session, 0);
+				sendRequest(session);
 				repeats--;
 				return true;
 			}//try
@@ -291,6 +252,62 @@ public class DiameterServiceRunner
 		}//if
 
 		return false;
+	}
+
+	private void processServiceControl(Service service, AvpSet serviceSet) throws AvpDataException
+	{
+		if (service != null) {
+			Avp grantedUnitsAvp = serviceSet.getAvp(Avp.GRANTED_SERVICE_UNIT);
+			long unitsGranted = 0;
+			if (grantedUnitsAvp != null) {
+				if (serviceConfig.getServiceType() == ServiceType.DATA) {
+					unitsGranted = grantedUnitsAvp.getGrouped()
+					                              .getAvp(serviceConfig.getServiceType()
+					                                                   .getUnitType()
+					                                                   .getType())
+					                              .getInteger64();
+				}//if
+				else {
+					unitsGranted = grantedUnitsAvp.getGrouped()
+					                              .getAvp(serviceConfig.getServiceType()
+					                                                   .getUnitType()
+					                                                   .getType())
+					                              .getUnsigned32();
+				}//else
+			}
+
+			Avp finalUnitInd = serviceSet.getAvp(Avp.FINAL_UNIT_INDICATION);
+			if (finalUnitInd != null) {
+				service.setFinalUnitInd(true);
+			}
+
+			if (unitsGranted > 0) {
+				long unitsUsed;
+				if (service.isFinalUnitInd()) {
+					unitsUsed = unitsGranted;
+				}//if
+				else {
+					unitsUsed = (long) (unitsGranted * serviceConfig.getUsagePercentage());
+				}
+
+				if (unitsUsed > service.getTotalUnits()) {
+					unitsUsed = service.getTotalUnits();
+				}//if
+				service.setTotalUnits(service.getTotalUnits() + unitsUsed);
+				service.setUnitUsed(unitsUsed);
+
+				long waitTime = (unitsUsed / serviceConfig.getUsageRateSec()) / serviceConfig.getUsageRate().toSeconds();
+				LOG.info("{}::{} - For '{}' Granted {} units, {} units used, {} units remains. Sleep time {} seconds", sessionId, msisdn, serviceConfig.getService(), unitsGranted, unitsUsed, service.getUnitUsed(), waitTime);
+				try {
+					//						Thread.sleep(waitTime *waitTime * 1000L);
+					Thread.sleep(1000L);
+				}//try
+				catch (InterruptedException ex) {
+					Thread.currentThread()
+					      .interrupt();
+				}//catch
+			}//if
+		}
 	}
 
 	public boolean doCreditControlAnswer(ClientCCASession session, JCreditControlRequest request, JCreditControlAnswer answer)
@@ -306,9 +323,9 @@ public class DiameterServiceRunner
 
 			int vResultCode = answerAvps.getAvp(Avp.RESULT_CODE)
 			                            .getInteger32();
-			LOG.info("{}::{} - Answer for '{}' received in {}ms ({}) - Result {}", sessionId, msisdn, service.getService(), getElapsedTime(), requestType, vResultCode);
+			LOG.info("{}::{} - Answer for '{}' received in {}ms ({}) - Result {}", sessionId, msisdn, serviceConfig.getService(), getElapsedTime(), requestType, vResultCode);
 			if (requestType == TERMINATION_REQUEST) {
-				LOG.info("{}::{} - Session for '{}' terminated", sessionId, msisdn, service.getService());
+				LOG.info("{}::{} - Session for '{}' terminated", sessionId, msisdn, serviceConfig.getService());
 
 				try {
 					Thread.sleep(1000L);
@@ -323,61 +340,23 @@ public class DiameterServiceRunner
 
 			requestType = UPDATE_REQUEST;
 			if (vResultCode == ResultCode.SUCCESS) {
-				long unitsGranted = 0;
-
-				Avp grantedUnitsAvp;
-				AvpSet serviceControl = answerAvps;
-				Avp multiCtrl = answerAvps.getAvp(Avp.MULTIPLE_SERVICES_CREDIT_CONTROL);
-				if (multiCtrl != null) {
-					serviceControl = multiCtrl.getGrouped();
-				}//if
-				grantedUnitsAvp = serviceControl.getAvp(Avp.GRANTED_SERVICE_UNIT);
-				if (grantedUnitsAvp != null) {
-					if (service.getServiceType() == ServiceType.VOICE || service.getServiceType() == ServiceType.USSD2) {
-						unitsGranted = grantedUnitsAvp.getGrouped()
-						                              .getAvp(service.getServiceType()
-						                                             .getUnitType()
-						                                             .getType())
-						                              .getInteger32();
-					}//if
-					else {
-						unitsGranted = grantedUnitsAvp.getGrouped()
-						                              .getAvp(service.getServiceType()
-						                                             .getUnitType()
-						                                             .getType())
-						                              .getUnsigned64();
-					}//else
-				}//if
-
-				Avp finalUnitInd = serviceControl.getAvp(Avp.FINAL_UNIT_INDICATION);
-				long unitsUsed = 0;
-				if (unitsGranted > 0) {
-					if (finalUnitInd == null) {
-						unitsUsed = (long) (unitsGranted * service.getUsagePercentage());
-					}//if
-					else {
-						unitsUsed = unitsGranted;
+				if (answerAvps.getAvp(Avp.MULTIPLE_SERVICES_CREDIT_CONTROL) != null) {
+					for (Avp msccAvp : answerAvps.getAvps(Avp.MULTIPLE_SERVICES_CREDIT_CONTROL).asArray()) {
+						AvpSet msccSet = msccAvp.getGrouped();
+						if (msccSet != null && msccSet.getAvp(Avp.RATING_GROUP) != null) {
+							Service service = serviceMap.get(msccSet.getAvp(Avp.RATING_GROUP).getInteger32());
+							processServiceControl(service, msccSet);
+						}
 					}
+				} else {
+					Service service = serviceMap.get(0);
+					processServiceControl(service, answerAvps);
+				}
 
-					if (unitsUsed > totalUnits) {
-						unitsUsed = totalUnits;
-					}//if
-					totalUnits -= unitsUsed;
-
-					long waitTime = (unitsUsed / service.getUsageRateSec()) / service.getUsageRate().toSeconds();
-					LOG.info("{}::{} - For '{}' Granted {} units, {} units used, {} units remains. Sleep time {} seconds", sessionId, msisdn, service.getService(), unitsGranted, unitsUsed, totalUnits, waitTime);
-					try {
-						//						Thread.sleep(waitTime *waitTime * 1000L);
-						Thread.sleep(1000L);
-					}//try
-					catch (InterruptedException ex) {
-						Thread.currentThread()
-						      .interrupt();
-					}//catch
-				}//if
-
-				requestType = (totalUnits <= 0 || unitsGranted <= 0 || finalUnitInd != null) ? TERMINATION_REQUEST : UPDATE_REQUEST;
-				sendRequest(session, unitsUsed);
+				requestType = serviceMap.values()
+					              .stream()
+					              .allMatch(Service::isFinalUnitInd) ? TERMINATION_REQUEST : UPDATE_REQUEST;
+				sendRequest(session);
 			}//if
 			else {
 				String reason = answerAvps.getAvp(Avp.ERROR_MESSAGE) != null ? answerAvps.getAvp(Avp.ERROR_MESSAGE)

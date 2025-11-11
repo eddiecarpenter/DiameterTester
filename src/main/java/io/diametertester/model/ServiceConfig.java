@@ -25,6 +25,9 @@ import io.diametertester.jsonserialisers.UnitOfMeasureDeserializer;
 import lombok.Data;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Data
 public class ServiceConfig
@@ -34,8 +37,9 @@ public class ServiceConfig
 	private int serviceId;
 	private String context;
 	private String destination;
-	private long ratingGroup;
+
 	private ServiceType serviceType;
+	private List<MultiService> multiService;
 
 	@JsonDeserialize(using = UnitOfMeasureDeserializer.class, as = Long.class)
 	private long units;
@@ -50,4 +54,34 @@ public class ServiceConfig
 	private Duration usageRate = Duration.ofSeconds(1);
 
 	private double usagePercentage = 1.0;
+
+	public boolean hasMultiServices()
+	{
+		return multiService != null && !multiService.isEmpty();
+	}
+
+	public boolean hasMultiServiceIndicator()
+	{
+		return multiService != null && multiService.size() > 1;
+	}
+
+	public Map<Integer, Service> getServiceMap()
+	{
+		if (multiService != null && !multiService.isEmpty()) {
+			return multiService.stream()
+				.collect(Collectors.toMap(
+					         MultiService::getRatingGroup,
+					         s -> Service.builder()
+					                     .requestUnits(s.getRequestUnits())
+					                     .totalUnits(s.getUnits())
+					                     .build()
+				                         )
+				        );
+		}
+
+		return Map.of(0, Service.builder()
+		                        .requestUnits(requestUnits)
+		                        .totalUnits(units)
+		                        .build());
+	}
 }

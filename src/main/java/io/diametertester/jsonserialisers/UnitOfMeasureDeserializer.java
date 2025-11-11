@@ -21,14 +21,27 @@ package io.diametertester.jsonserialisers;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.io.IOException;
 
 public class UnitOfMeasureDeserializer extends JsonDeserializer<Long>
 {
 	@Override
-	public Long deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException
+	public Long deserialize(JsonParser parser, DeserializationContext ctx) throws IOException
 	{
-		return UnitOfMeasureConverter.getValueFromString(jsonParser.readValueAs(String.class));
+		JsonNode node = parser.getCodec().readTree(parser);
+
+		if (node == null || node.isNull() || node.isMissingNode()) {
+			return 0L;
+		}
+
+		String value = node.asText();
+
+		if (value == null || value.trim().isEmpty()) {
+			return 0L;
+		}
+
+		return UnitOfMeasureConverter.getValueFromString(value);
 	}
 }
