@@ -132,7 +132,6 @@ public class DiameterServiceRunner
 			reqAvps.addAvp(Avp.CC_REQUEST_NUMBER, requestNr++);
 			reqAvps.addAvp(Avp.VENDOR_ID, vendorId);
 			reqAvps.addAvp(Avp.SERVICE_CONTEXT_ID, serviceConfig.getContext(), false);
-			reqAvps.addAvp(Avp.SERVICE_IDENTIFIER_CCA, serviceConfig.getServiceId());
 
 			String reqType = switch (requestType) {
 				case INITIAL_REQUEST -> {
@@ -160,6 +159,7 @@ public class DiameterServiceRunner
 					inInfo.addAvp(Avp.CALLING_PARTY_ADDRESS, msisdn, 10415, false, false, false);
 					inInfo.addAvp(Avp.REQUESTED_PARTY_ADDRESS, serviceConfig.getDestination(), 10415, false, false, false);
 					inInfo.addAvp(Avp.ROLE_OF_NODE, 0, 10415, false, false, true);
+
 				}
 
 				case DATA -> {
@@ -204,6 +204,7 @@ public class DiameterServiceRunner
 					serviceControl = reqAvps;
 				}
 
+				serviceControl.addAvp(Avp.SERVICE_IDENTIFIER_CCA, serviceConfig.getServiceId());
 				if (service.getUnitUsed() > 0) {
 					AvpSet usedServiceUnitAvp = serviceControl.addGroupedAvp(Avp.USED_SERVICE_UNIT);
 					usedServiceUnitAvp.addAvp(serviceConfig.getServiceType().getUnitType().getType(),
