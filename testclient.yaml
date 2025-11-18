@@ -26,7 +26,7 @@ services:
     multiService:
       - ratingGroup: 999
         units: 5mb
-        requestUnits: 0kb
+        requestUnits: 5kb
     #      - ratingGroup: 100103800
     #        units: 1mb
     #        requestUnits: 50kb

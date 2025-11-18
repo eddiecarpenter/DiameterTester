@@ -243,6 +243,7 @@ public class DiameterServiceRunner
 				ApplicationId application = ApplicationId.createByAuthAppId(vendorId, 4);
 				ClientCCASessionImpl session = sessionFactory.getNewAppSession(null, application, ClientCCASession.class, Collections.emptyList());
 				sessionId = session.getSessionId();
+
 				sendRequest(session);
 				repeats--;
 				return true;
