@@ -25,11 +25,11 @@ services:
     context: scg@huawei.com
     multiService:
       - ratingGroup: 999
-        units: 5mb
+        units: 15mb
         requestUnits: 5kb
-    #      - ratingGroup: 100103800
-    #        units: 1mb
-    #        requestUnits: 50kb
+      - ratingGroup: 100103800
+        units: 50mb
+        requestUnits: 50kb
     #      - ratingGroup: 100200201
     #        units: 2mb
     #        requestUnits: 100kb

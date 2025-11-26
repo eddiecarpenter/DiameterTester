@@ -159,7 +159,6 @@ public class DiameterServiceRunner
 					inInfo.addAvp(Avp.CALLING_PARTY_ADDRESS, msisdn, 10415, false, false, false);
 					inInfo.addAvp(Avp.REQUESTED_PARTY_ADDRESS, serviceConfig.getDestination(), 10415, false, false, false);
 					inInfo.addAvp(Avp.ROLE_OF_NODE, 0, 10415, false, false, true);
-
 				}
 
 				case DATA -> {
@@ -292,23 +291,29 @@ public class DiameterServiceRunner
 					unitsUsed = (long) (unitsGranted * serviceConfig.getUsagePercentage());
 				}
 
-				if (unitsUsed > service.getTotalUnits()) {
-					unitsUsed = service.getTotalUnits();
+				long remainingUnits = service.getTotalUnits() - service.getTotalUsed();
+				if (unitsUsed > remainingUnits) {
+					unitsUsed = remainingUnits;
+					service.setFinalUnitInd(true);
 				}//if
-				service.setTotalUnits(service.getTotalUnits() + unitsUsed);
+
+				service.setTotalUsed(service.getTotalUsed() + unitsUsed);
 				service.setUnitUsed(unitsUsed);
 
 				long waitTime = (unitsUsed / serviceConfig.getUsageRateSec()) / serviceConfig.getUsageRate().toSeconds();
-				LOG.info("{}::{} - For '{}' Granted {} units, {} units used, {} units remains. Sleep time {} seconds", sessionId, msisdn, serviceConfig.getService(), unitsGranted, unitsUsed, service.getUnitUsed(), waitTime);
+				LOG.info("{}::{} - For '{}' Granted {} units, {} units used, {} units remains. Sleep time {} seconds", sessionId, msisdn, serviceConfig.getService(), unitsGranted, service.getTotalUnits() - service.getTotalUsed(), service.getUnitUsed(), waitTime);
 				try {
 					//						Thread.sleep(waitTime *waitTime * 1000L);
-					Thread.sleep(1000L);
+					Thread.sleep(5000L);
 				}//try
 				catch (InterruptedException ex) {
 					Thread.currentThread()
 					      .interrupt();
 				}//catch
 			}//if
+			else {
+				service.setUnitUsed(0);
+			}
 		}
 	}
 
